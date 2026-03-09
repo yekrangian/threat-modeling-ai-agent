@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Markdown Viewer — Multi-file</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    :root {
+      --bg-body: #1a1b26;
+      --bg-card: #24283b;
+      --bg-card-hover: #2d3250;
+      --bg-input: #16161e;
+      --text-primary: #c0caf5;
+      --text-secondary: #a9b1d6;
+      --text-muted: #565f89;
+      --accent: #7aa2f7;
+      --accent-hover: #89b4fa;
+      --accent-inverse: #1a1b26;
+      --border: #363b54;
+      --border-light: #565f89;
+      --heading-alt: #bb9af7;
+      --strong: #e0af68;
+      --error: #f7768e;
+    }
+    [data-theme="light"] {
+      --bg-body: #f0f2f5;
+      --bg-card: #ffffff;
+      --bg-card-hover: #e8eaed;
+      --bg-input: #ffffff;
+      --text-primary: #1a1a2e;
+      --text-secondary: #363b54;
+      --text-muted: #565f89;
+      --accent: #3b6bb5;
+      --accent-hover: #4a7ac4;
+      --accent-inverse: #ffffff;
+      --border: #d1d5db;
+      --border-light: #9ca3af;
+      --heading-alt: #5b4d96;
+      --strong: #b45309;
+      --error: #dc2626;
+    }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg-body);
+      color: var(--text-primary);
+    }
+    .container {
+      width: 100%;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 1.5rem 2rem;
+    }
+    header {
+      margin-bottom: 2rem;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin: 0 0 1rem 0;
+    }
+    .upload-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .upload-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.6rem 1.25rem;
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--accent-inverse);
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.05s;
+    }
+    .upload-btn:hover {
+      background: var(--accent-hover);
+    }
+    .upload-btn:active {
+      transform: scale(0.98);
+    }
+    .upload-btn input {
+      position: absolute;
+      width: 0.1px;
+      height: 0.1px;
+      opacity: 0;
+      overflow: hidden;
+      z-index: -1;
+    }
+    .upload-zone {
+      flex: 1;
+      min-width: 200px;
+      border: 2px dashed var(--border-light);
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+      text-align: center;
+      background: var(--bg-card);
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .upload-zone:hover,
+    .upload-zone.dragover {
+      border-color: var(--accent);
+      background: var(--bg-card-hover);
+    }
+    .upload-zone p {
+      margin: 0;
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+    .upload-zone .hint {
+      margin-top: 0.25rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    /* ── File tabs ── */
+    .file-tabs {
+      display: none;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-top: 1.25rem;
+      align-items: center;
+    }
+    .file-tabs.visible {
+      display: flex;
+    }
+    .file-tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.75rem 0.35rem 0.9rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      max-width: 220px;
+    }
+    .file-tab:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-light);
+      color: var(--text-primary);
+    }
+    .file-tab.active {
+      background: var(--bg-card-hover);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .file-tab .tab-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .file-tab .tab-close {
+      flex-shrink: 0;
+      font-size: 0.8rem;
+      line-height: 1;
+      color: var(--text-muted);
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+    .file-tab .tab-close:hover {
+      color: var(--error);
+    }
+    .tab-count {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-left: 0.25rem;
+    }
+    .output {
+      margin-top: 2rem;
+      padding: 2rem;
+      background: var(--bg-card);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .output:empty {
+      display: none;
+    }
+    .output h1 { font-size: 1.75rem; color: var(--accent); margin-top: 0; padding-bottom: 0.25rem; border-bottom: 1px solid var(--border); }
+    .output h2 { font-size: 1.35rem; color: var(--heading-alt); margin-top: 1.5rem; }
+    .output h3 { font-size: 1.1rem; color: var(--text-primary); margin-top: 1.25rem; }
+    .output p { line-height: 1.6; margin: 0.5rem 0; }
+    .output ul, .output ol { margin: 0.5rem 0; padding-left: 1.5rem; }
+    .output li { margin: 0.25rem 0; }
+    .output a { color: var(--accent); text-decoration: none; }
+    .output a:hover { text-decoration: underline; }
+    .output strong { color: var(--strong); }
+    .output code { background: var(--border); padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.9em; }
+    .output pre { background: var(--bg-input); padding: 1rem; border-radius: 6px; overflow-x: auto; }
+    .output pre code { background: none; padding: 0; }
+    .output hr { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+    .output table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+    .output th, .output td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+    .output th { background: var(--border); color: var(--heading-alt); }
+    .error {
+      color: var(--error);
+      margin-top: 1rem;
+      font-size: 0.9rem;
+    }
+    .export-row {
+      margin-top: 1rem;
+      display: none;
+    }
+    .export-row.visible {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .pdf-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.5rem 1rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--accent-inverse);
+      background: #9ece6a;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .pdf-btn:hover {
+      background: #b4f073;
+    }
+    .pdf-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .toolbar .hint {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+    .edit-area {
+      margin-top: 1rem;
+      display: none;
+    }
+    .edit-area.visible {
+      display: block;
+    }
+    .edit-area textarea {
+      width: 100%;
+      min-height: 400px;
+      padding: 1rem;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      background: var(--bg-input);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      resize: vertical;
+    }
+    .edit-area textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .edit-actions {
+      margin-top: 0.75rem;
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .sec-btn {
+      padding: 0.5rem 1rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--accent-inverse);
+      background: #e0af68;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .sec-btn:hover {
+      background: #e5c07a;
+    }
+    .sec-btn.outline {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-light);
+    }
+    .sec-btn.outline:hover {
+      background: var(--bg-card-hover);
+      color: var(--text-primary);
+    }
+    .word-btn:hover {
+      background: #3b6bb5 !important;
+    }
+    .content-wrap.hide-preview .output { display: none; }
+    .content-wrap.hide-preview .export-row { display: none !important; }
+    .content-wrap.hide-editor .edit-area { display: none !important; }
+    .content-wrap.show-editor .output { display: none; }
+    .content-wrap.show-editor .export-row { display: none !important; }
+    .content-wrap.show-editor .edit-area { display: block !important; }
+    /* Theme toggle — top right */
+    .theme-toggle {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      z-index: 100;
+      width: 2.5rem;
+      height: 2.5rem;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-card);
+      color: var(--text-primary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      transition: background 0.2s, border-color 0.2s;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .theme-toggle:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-light);
+    }
+    .theme-toggle:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    @media print {
+      .theme-toggle { display: none !important; }
+      body { background: #fff; color: #111; }
+      header, .upload-row, .export-row, .edit-area, .edit-actions, .toolbar .edit-btn, .toolbar .word-btn, .error, .pdf-btn { display: none !important; }
+      .container { max-width: none; padding: 0; }
+      .output {
+        background: #fff;
+        border: none;
+        padding: 0;
+        box-shadow: none;
+      }
+      .output h1 { color: #111; border-color: #ccc; }
+      .output h2 { color: #222; }
+      .output h3 { color: #333; }
+      .output a { color: #06c; }
+      .output strong { color: #111; }
+      .output code { background: #f0f0f0; color: #111; }
+      .output pre { background: #f5f5f5; }
+      .output th, .output td { border-color: #ccc; }
+      .output th { background: #eee; color: #111; }
+    }
+  </style>
+</head>
+<body>
+  <button type="button" class="theme-toggle" id="themeToggle" title="Toggle dark/light mode" aria-label="Toggle dark/light mode">🌙</button>
+  <div class="container">
+    <header>
+      <h1>Markdown Viewer</h1>
+      <div class="upload-row">
+        <label class="upload-btn">
+          Choose .md files
+          <input type="file" id="file" accept=".md,text/markdown,text/plain" multiple>
+        </label>
+        <div class="upload-zone" id="zone">
+          <p>or drop .md files here</p>
+          <p class="hint">Accepts .md / markdown files &mdash; multiple files supported</p>
+        </div>
+      </div>
+      <div class="file-tabs" id="fileTabs"></div>
+    </header>
+    <div class="content-wrap" id="contentWrap">
+      <div class="export-row" id="exportRow">
+        <div class="toolbar">
+          <button type="button" class="pdf-btn" id="pdfBtn" title="Open print dialog and choose Save as PDF">Export as PDF</button>
+          <button type="button" class="pdf-btn sec-btn word-btn" id="wordBtn" style="background:#2b579a;color:#fff;">Export as Word (.docx)</button>
+          <button type="button" class="pdf-btn sec-btn edit-btn" id="editBtn" style="background:#565f89;color:#c0caf5;">Edit</button>
+          <span class="hint">Print → Save as PDF</span>
+        </div>
+      </div>
+      <div class="output" id="output"></div>
+      <div class="edit-area" id="editArea">
+        <textarea id="editor" placeholder="Load a .md file or paste markdown here to edit..."></textarea>
+        <div class="edit-actions">
+          <button type="button" class="sec-btn" id="applyBtn">Apply & preview</button>
+          <button type="button" class="sec-btn outline" id="saveMdBtn">Save as .md file</button>
+          <button type="button" class="sec-btn outline" id="cancelEditBtn">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <div class="error" id="error"></div>
+  </div>
+
+  <script>
+    (function () {
+      // ── Theme (dark/light) ─────────────────────────────────────────────────
+      const THEME_KEY = 'md-viewer-theme';
+      const themeToggle = document.getElementById('themeToggle');
+      function getTheme() {
+        return localStorage.getItem(THEME_KEY) || 'dark';
+      }
+      function setTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme === 'light' ? 'light' : '');
+        localStorage.setItem(THEME_KEY, theme);
+        themeToggle.textContent = theme === 'light' ? '☀️' : '🌙';
+        themeToggle.title = theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
+      }
+      themeToggle.addEventListener('click', function () {
+        setTheme(getTheme() === 'light' ? 'dark' : 'light');
+      });
+      setTheme(getTheme());
+
+      const fileInput   = document.getElementById('file');
+      const zone        = document.getElementById('zone');
+      const output      = document.getElementById('output');
+      const errorEl     = document.getElementById('error');
+      const exportRow   = document.getElementById('exportRow');
+      const pdfBtn      = document.getElementById('pdfBtn');
+      const contentWrap = document.getElementById('contentWrap');
+      const editor      = document.getElementById('editor');
+      const editBtn     = document.getElementById('editBtn');
+      const applyBtn    = document.getElementById('applyBtn');
+      const saveMdBtn   = document.getElementById('saveMdBtn');
+      const cancelEditBtn = document.getElementById('cancelEditBtn');
+      const editArea    = document.getElementById('editArea');
+      const wordBtn     = document.getElementById('wordBtn');
+      const fileTabs    = document.getElementById('fileTabs');
+
+      // ── Multi-file state ──────────────────────────────────────────────────
+      // Each entry: { id, name, markdown }
+      let files = [];
+      let activeId = null;
+
+      marked.setOptions({ gfm: true, breaks: true });
+
+      // ── Helpers ───────────────────────────────────────────────────────────
+      function uid() { return Math.random().toString(36).slice(2); }
+
+      function activeFile() { return files.find(f => f.id === activeId) || null; }
+
+      function currentPdfTitle() {
+        const f = activeFile(); return f ? f.name.replace(/\.md$/i, '') : 'document';
+      }
+      function currentFilename() {
+        const f = activeFile(); return f ? f.name : '';
+      }
+      function currentRawMarkdown() {
+        const f = activeFile(); return f ? f.markdown : '';
+      }
+      function setCurrentMarkdown(text) {
+        const f = activeFile(); if (f) f.markdown = text;
+      }
+
+      // ── Tab rendering ─────────────────────────────────────────────────────
+      function renderTabs() {
+        fileTabs.innerHTML = '';
+        if (files.length === 0) {
+          fileTabs.classList.remove('visible');
+          return;
+        }
+        fileTabs.classList.add('visible');
+
+        files.forEach(function (f) {
+          const tab = document.createElement('div');
+          tab.className = 'file-tab' + (f.id === activeId ? ' active' : '');
+          tab.title = f.name;
+
+          const nameSpan = document.createElement('span');
+          nameSpan.className = 'tab-name';
+          nameSpan.textContent = f.name;
+
+          const closeBtn = document.createElement('button');
+          closeBtn.className = 'tab-close';
+          closeBtn.textContent = '×';
+          closeBtn.title = 'Remove ' + f.name;
+          closeBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            removeFile(f.id);
+          });
+
+          tab.appendChild(nameSpan);
+          tab.appendChild(closeBtn);
+          tab.addEventListener('click', function () { switchTo(f.id); });
+          fileTabs.appendChild(tab);
+        });
+
+        if (files.length > 1) {
+          const count = document.createElement('span');
+          count.className = 'tab-count';
+          count.textContent = files.length + ' files';
+          fileTabs.appendChild(count);
+        }
+      }
+
+      // ── Switch active file ────────────────────────────────────────────────
+      function switchTo(id) {
+        showPreview();
+        activeId = id;
+        renderTabs();
+        updatePreview();
+      }
+
+      // ── Remove a file tab ─────────────────────────────────────────────────
+      function removeFile(id) {
+        const idx = files.findIndex(f => f.id === id);
+        files.splice(idx, 1);
+        if (files.length === 0) {
+          activeId = null;
+          output.innerHTML = '';
+          exportRow.classList.remove('visible');
+          fileTabs.classList.remove('visible');
+          fileTabs.innerHTML = '';
+          showPreview();
+        } else {
+          if (activeId === id) {
+            activeId = files[Math.min(idx, files.length - 1)].id;
+            updatePreview();
+            showPreview();
+          }
+          renderTabs();
+        }
+      }
+
+      // ── Preview / editor ──────────────────────────────────────────────────
+      function updatePreview() {
+        const md = currentRawMarkdown();
+        if (md === null || md === undefined || (md === '' && !activeId)) return;
+        const content = document.createElement('div');
+        try { content.innerHTML = marked.parse(md || ''); }
+        catch (e) { content.textContent = 'Failed to parse markdown.'; }
+        output.innerHTML = '';
+        output.appendChild(content);
+        exportRow.classList.add('visible');
+      }
+
+      function showEditor() {
+        editor.value = currentRawMarkdown();
+        contentWrap.classList.add('show-editor');
+        editArea.classList.add('visible');
+      }
+
+      function showPreview() {
+        contentWrap.classList.remove('show-editor');
+        editArea.classList.remove('visible');
+      }
+
+      // ── Load files ────────────────────────────────────────────────────────
+      function isMarkdownFile(file) {
+        return file.name.toLowerCase().endsWith('.md') ||
+               file.type === 'text/markdown' ||
+               file.type === 'text/plain';
+      }
+
+      function loadFiles(fileList) {
+        errorEl.textContent = '';
+        const valid = Array.from(fileList).filter(isMarkdownFile);
+        const invalid = fileList.length - valid.length;
+        if (invalid > 0) {
+          errorEl.textContent = invalid + ' file(s) skipped — only .md files are accepted.';
+        }
+        if (valid.length === 0) return;
+
+        let loaded = 0;
+        valid.forEach(function (file) {
+          // avoid duplicates by name
+          if (files.find(f => f.name === file.name)) {
+            loaded++;
+            if (loaded === valid.length) afterLoad();
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = function () {
+            files.push({ id: uid(), name: file.name, markdown: reader.result || '' });
+            loaded++;
+            if (loaded === valid.length) afterLoad();
+          };
+          reader.onerror = function () {
+            errorEl.textContent = 'Could not read: ' + file.name;
+            loaded++;
+            if (loaded === valid.length) afterLoad();
+          };
+          reader.readAsText(file, 'UTF-8');
+        });
+      }
+
+      function afterLoad() {
+        // activate the last added file
+        activeId = files[files.length - 1].id;
+        renderTabs();
+        updatePreview();
+        showPreview();
+      }
+
+      // ── Events ────────────────────────────────────────────────────────────
+      zone.addEventListener('click', function (e) {
+        e.preventDefault();
+        fileInput.click();
+      });
+
+      zone.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        zone.classList.add('dragover');
+      });
+      zone.addEventListener('dragleave', function () { zone.classList.remove('dragover'); });
+      zone.addEventListener('drop', function (e) {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        loadFiles(e.dataTransfer.files);
+      });
+
+      fileInput.addEventListener('change', function () {
+        if (fileInput.files.length) loadFiles(fileInput.files);
+        fileInput.value = '';
+      });
+
+      pdfBtn.addEventListener('click', function () {
+        if (!currentRawMarkdown() && !output.innerHTML.trim()) return;
+        var prevTitle = document.title;
+        document.title = currentPdfTitle() || 'Markdown Export';
+        window.print();
+        document.title = prevTitle;
+      });
+
+      editBtn.addEventListener('click', function () {
+        if (!currentRawMarkdown() && !output.innerHTML.trim()) return;
+        showEditor();
+      });
+
+      applyBtn.addEventListener('click', function () {
+        setCurrentMarkdown(editor.value);
+        updatePreview();
+        showPreview();
+      });
+
+      cancelEditBtn.addEventListener('click', function () { showPreview(); });
+
+      saveMdBtn.addEventListener('click', function () {
+        var text = contentWrap.classList.contains('show-editor') ? editor.value : currentRawMarkdown();
+        if (!text) return;
+        var name = (currentFilename() || currentPdfTitle() + '.md').replace(/\.md$/i, '') + '.md';
+        var blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      });
+
+      wordBtn.addEventListener('click', async function () {
+        var content;
+        if (contentWrap.classList.contains('show-editor')) {
+          var div = document.createElement('div');
+          div.innerHTML = marked.parse(editor.value || '');
+          content = div;
+        } else {
+          content = output.firstElementChild;
+        }
+        if (!content || (!content.innerText && !content.innerHTML)) return;
+        var name = (currentFilename() || currentPdfTitle() + '.md').replace(/\.md$/i, '') + '.docx';
+        try {
+          var docx = await import('https://esm.sh/docx@8.5.0');
+          var Doc = docx.Document;
+          var Packer = docx.Packer;
+          var P = docx.Paragraph;
+          var T = docx.TextRun;
+          var H = docx.HeadingLevel;
+          var Table = docx.Table;
+          var TableRow = docx.TableRow;
+          var TableCell = docx.TableCell;
+          var BorderStyle = docx.BorderStyle;
+          var convert = function (el) {
+            if (!el || el.nodeType !== 1) return [];
+            var tag = el.tagName;
+            var out = [];
+            if (tag === 'H1') return [new P({ text: el.innerText || '', heading: H.HEADING_1 })];
+            if (tag === 'H2') return [new P({ text: el.innerText || '', heading: H.HEADING_2 })];
+            if (tag === 'H3') return [new P({ text: el.innerText || '', heading: H.HEADING_3 })];
+            if (tag === 'P') return [new P({ children: [new T({ text: el.innerText || ' ' })] })];
+            if (tag === 'UL' || tag === 'OL') {
+              var level = 0;
+              [].slice.call(el.children).forEach(function (li) {
+                if (li.tagName === 'LI') out.push(new P({ text: li.innerText || '', bullet: { level: level } }));
+              });
+              return out;
+            }
+            if (tag === 'TABLE') {
+              var rows = [];
+              [].slice.call(el.querySelectorAll('tr')).forEach(function (tr) {
+                var cells = [].slice.call(tr.children).map(function (td) {
+                  return new TableCell({ children: [new P({ children: [new T({ text: (td.innerText || '').trim() })] })] });
+                });
+                rows.push(new TableRow({ children: cells }));
+              });
+              return [new Table({ rows: rows })];
+            }
+            if (tag === 'HR') return [new P({ text: '', border: { bottom: { style: BorderStyle.SINGLE } } })];
+            if (tag === 'DIV' || tag === 'SECTION') {
+              [].slice.call(el.children).forEach(function (child) { out = out.concat(convert(child)); });
+              return out;
+            }
+            return out;
+          };
+          var children = [];
+          var root = content.nodeName === 'DIV' ? content : content.parentElement;
+          [].slice.call(root.children).forEach(function (child) { children = children.concat(convert(child)); });
+          if (children.length === 0) children = [new P({ text: content.innerText || ' ' })];
+          var doc = new Doc({ sections: [{ properties: {}, children: children }] });
+          var blob = await Packer.toBlob(doc);
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = name;
+          a.click();
+          URL.revokeObjectURL(a.href);
+        } catch (e) {
+          var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="ProgId" content="Word.Document"><meta name="Generator" content="Microsoft Word"><title>Document</title></head><body>' + (content.innerHTML || content) + '</body></html>';
+          var blob = new Blob(['\ufeff' + html], { type: 'application/msword' });
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = name.replace(/\.docx$/i, '.doc');
+          a.click();
+          URL.revokeObjectURL(a.href);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
